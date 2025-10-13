@@ -5,7 +5,7 @@
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --partition=gpu
-#SBATCH --qos=test
+#SBATCH --qos=default
 #SBATCH --time=48:00:00
 #SBATCH --chdir=/project/home/p200848/david/relora-3000
 #SBATCH --output=/project/home/p200848/david/outputs/pretokenize.out
