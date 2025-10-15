@@ -829,7 +829,8 @@ def main(args):
         _loss = loss_info[0] / loss_info[1]  # loss to log in wandb below
 
         if loss_info[2] == 0:  # no NaNs, update model
-            weightUpdateTracker.track(optimizer, step=global_step)
+            if global_rank == 0:
+                weightUpdateTracker.track(optimizer, step=global_step)
             optimizer.step()
             scheduler.step()
         else:
