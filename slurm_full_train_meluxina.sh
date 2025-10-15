@@ -12,7 +12,7 @@
 #SBATCH --error=/project/home/p200848/david/outputs/torchrun.err
 
 # Interactive mode
-# salloc --time=00:20:00 --nodes=1 --gres=gpu:1 --ntasks-per-node=1 --cpus-per-task=8 --account=p200848 --partition=gpu --qos=test
+# salloc --time=00:20:00 --nodes=1 --gres=gpu:4 --ntasks-per-node=1 --cpus-per-task=32 --account=p200848 --partition=gpu --qos=test
 
 # Set HF home directory for offline datasets
 export HF_HOME="/project/home/p200848/david/huggingface"
@@ -32,7 +32,7 @@ export DATA_PATH=preprocessed_data/c4_en_t5-base_512
 
 # Run the torchrun script
 torchrun --nproc-per-node 4 torchrun_main.py \
-    --model_config configs/llama_9m.json \
+    --model_config configs/llama_60m.json \
     --dataset_path $DATA_PATH \
     --batch_size 24 \
     --total_batch_size 1152 \
@@ -41,4 +41,4 @@ torchrun --nproc-per-node 4 torchrun_main.py \
     --save_every 1000 \
     --eval_every 1000 \
     --num_training_steps 20000 \
-    --tags warm_start_9M
+    --tags warm_start_60M
