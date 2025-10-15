@@ -5,6 +5,7 @@ import os
 import sys
 import yaml
 import time
+from datetime import datetime
 import json
 import random
 import argparse
@@ -47,6 +48,8 @@ from peft_pretraining.relora import ReLoRaModel, ReLoRaLinear, merge_and_reinit_
 
 from peft_pretraining.megatron_dataset.arguments import NeoXArgs
 from peft_pretraining.megatron_dataset import data_utils as megatron_data_utils
+
+from tracking_utils import WeightUpdateTracker
 
 transformers.logging.set_verbosity_error()
 
@@ -402,7 +405,14 @@ def main(args):
 
     # initialize wandb without config (it is passed later)
     if global_rank == 0:
-        wandb.init(project="peft_pretraining", tags=args.tags, id=wandb_id, resume="allow", notes=args.comment)
+        # Create run name from tags and timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if args.tags:
+            run_name = f"{args.tags[0]}_{timestamp}"
+        else:
+            run_name = f"run_{timestamp}"
+
+        wandb.init(project="peft_pretraining", name=run_name, tags=args.tags, id=wandb_id, resume="allow", notes=args.comment)
         args.run_name = wandb.run.name
         if args.save_dir is None:
             args.save_dir = f"checkpoints/{wandb.run.name}"
@@ -675,7 +685,15 @@ def main(args):
         optimizer_state_keys = ["exp_avg", "exp_avg_sq"]
     else:
         raise ValueError(f"Optimizer {args.optimizer} not supported")
+    
+    weight_metrics_save_dir = f"weight_metrics/{args.run_name}"
+    os.makedirs(weight_metrics_save_dir, exist_ok=True)
 
+    weightUpdateTracker = WeightUpdateTracker(
+        model, 
+        track_every_n_steps=250,
+        save_dir=f"weight_metrics/{args.run_name}"
+    )
     scheduler_start_step = update_step
     _scheduler_steps = args.num_training_steps - scheduler_start_step
     logger.info(f"Scheduler will run for {_scheduler_steps} update steps")
@@ -811,6 +829,7 @@ def main(args):
         _loss = loss_info[0] / loss_info[1]  # loss to log in wandb below
 
         if loss_info[2] == 0:  # no NaNs, update model
+            weightUpdateTracker.track(optimizer, step=global_step)
             optimizer.step()
             scheduler.step()
         else:
@@ -1012,6 +1031,7 @@ def main(args):
             logger.info(f"Test loss: {total_loss}")
 
     if global_rank == 0:
+        weightUpdateTracker.save_metrics()
         wandb.finish()
 
     logger.info("Script finished successfully")
