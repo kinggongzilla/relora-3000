@@ -8,8 +8,8 @@
 #SBATCH --qos=boost_qos_lprod
 #SBATCH --time=48:00:00
 #SBATCH --chdir=/leonardo_scratch/fast/EUHPC_D18_005/david/relora-3000
-#SBATCH --output=/leonardo_scratch/fast/EUHPC_D18_005/david/outputs/fulltrain_relora.out
-#SBATCH --error=/leonardo_scratch/fast/EUHPC_D18_005/david/outputs/fulltrain_relora.err
+#SBATCH --output=/leonardo_scratch/fast/EUHPC_D18_005/david/outputs/relora_from_scratch.out
+#SBATCH --error=/leonardo_scratch/fast/EUHPC_D18_005/david/outputs/relora_from_scratch.err
 
 # See running jobs
 # watch -n 1 squeue --me
