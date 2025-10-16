@@ -201,7 +201,7 @@ def save_model_ddp(model, optimizer, scheduler, training_state_checkpoint, run_c
         os.makedirs(os.path.dirname(save_dir), exist_ok=True)
 
         _model = model.module
-        _model.save_pretrained(save_dir, safe_serialization=False)
+        _model.save_pretrained(save_dir)
 
     dist.barrier()
     if isinstance(optimizer, ZeroRedundancyOptimizer):
