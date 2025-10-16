@@ -515,7 +515,7 @@ def main(args):
     if args.warmed_up_model is not None:
         logger.info("*" * 40)
         logger.info(f"Loading a warmed-up model from {args.warmed_up_model}")
-        checkpoint_path = os.path.join(args.warmed_up_model, "pytorch_model.bin")  # !! won't work with sharded models
+        checkpoint_path = os.path.join(args.warmed_up_model, "model.safetensors")  # !! won't work with sharded models
         model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"), strict=True)
         logger.info(f"Model successfully loaded (strict=True policy)")
 
@@ -564,7 +564,7 @@ def main(args):
 
     if args.resume_from:
         logger.info(f"Loading model from {args.resume_from}")
-        checkpoint_path = os.path.join(args.resume_from, "pytorch_model.bin")
+        checkpoint_path = os.path.join(args.resume_from, "model.safetensors")
         if isinstance(model, ReLoRaModel):
             model.wrapped_model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"), strict=True)
         else:
