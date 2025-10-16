@@ -31,7 +31,7 @@ module load libffi/3.4.5-GCCcore-13.3.0
 export DATA_PATH=preprocessed_data/c4_en_t5-base_512
 
 # Run the torchrun script
-torchrun --nproc-per-node 1 torchrun_main.py \
+torchrun --nproc-per-node 4 torchrun_main.py \
     --model_config configs/llama_60m.json \
     --batch_size 24 \
     --total_batch_size 1152 \
