@@ -201,7 +201,7 @@ def save_model_ddp(model, optimizer, scheduler, training_state_checkpoint, run_c
         os.makedirs(os.path.dirname(save_dir), exist_ok=True)
 
         _model = model.module
-        _model.save_pretrained(save_dir)
+        _model.save_pretrained(save_dir, safe_serialization=False)
 
     dist.barrier()
     if isinstance(optimizer, ZeroRedundancyOptimizer):
@@ -515,8 +515,8 @@ def main(args):
     if args.warmed_up_model is not None:
         logger.info("*" * 40)
         logger.info(f"Loading a warmed-up model from {args.warmed_up_model}")
-        checkpoint_path = os.path.join(args.warmed_up_model, "model.safetensors")  # !! won't work with sharded models
-        model.load_state_dict(torch.load(checkpoint_path, map_location="cpu", weights_only=False), strict=True)
+        checkpoint_path = os.path.join(args.warmed_up_model, "pytorch_model.bin")  # !! won't work with sharded models
+        model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"), strict=True)
         logger.info(f"Model successfully loaded (strict=True policy)")
 
         if os.path.exists(os.path.join(args.warmed_up_model, "training_state.json")):
@@ -564,9 +564,9 @@ def main(args):
 
     if args.resume_from:
         logger.info(f"Loading model from {args.resume_from}")
-        checkpoint_path = os.path.join(args.resume_from, "model.safetensors")
+        checkpoint_path = os.path.join(args.resume_from, "pytorch_model.bin")  # !! won't work with sharded models
         if isinstance(model, ReLoRaModel):
-            model.wrapped_model.load_state_dict(torch.load(checkpoint_path, map_location="cpu", weights_only=False), strict=True)
+            model.wrapped_model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"), strict=True)
         else:
             model.load_state_dict(torch.load(checkpoint_path, map_location="cpu", weights_only=False), strict=True)
 
@@ -1032,7 +1032,8 @@ def main(args):
             logger.info(f"Test loss: {total_loss}")
 
     if global_rank == 0:
-        weightUpdateTracker.save_metrics()
+        if not args.use_peft:
+            weightUpdateTracker.save_metrics()
         wandb.finish()
 
     logger.info("Script finished successfully")
