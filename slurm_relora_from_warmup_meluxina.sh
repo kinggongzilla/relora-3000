@@ -31,14 +31,22 @@ module load libffi/3.4.5-GCCcore-13.3.0
 export DATA_PATH=preprocessed_data/c4_en_t5-base_512
 
 # Run the torchrun script
-torchrun --nproc-per-node 4 torchrun_main.py \
+torchrun --nproc-per-node 1 torchrun_main.py \
     --model_config configs/llama_60m.json \
-    --dataset_path $DATA_PATH \
     --batch_size 24 \
     --total_batch_size 1152 \
-    --lr 5e-4 \
+    --lr 1e-3 \
     --max_length 512 \
-    --save_every 1000 \
-    --eval_every 1000 \
+    --use_peft True \
+    --relora 5000 \
+    --cycle_length 5000 \
+    --restart_warmup_steps 100 \
+    --scheduler cosine_restarts \
+    --warmup_steps 500 \
+    --reset_optimizer_on_relora True \
     --num_training_steps 20000 \
-    --tags warm_start_60M
+    --save_every 5000 \
+    --eval_every 5000 \
+    --warmed_up_model checkpoints/warm_start_60M_20251015_211428/model_5000 \
+    --tags relora_60M \
+    --dataset_path preprocessed_data/c4_en_t5-base_512
