@@ -516,7 +516,7 @@ def main(args):
         logger.info("*" * 40)
         logger.info(f"Loading a warmed-up model from {args.warmed_up_model}")
         checkpoint_path = os.path.join(args.warmed_up_model, "model.safetensors")  # !! won't work with sharded models
-        model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"), strict=True)
+        model.load_state_dict(torch.load(checkpoint_path, map_location="cpu", weights_only=False), strict=True)
         logger.info(f"Model successfully loaded (strict=True policy)")
 
         if os.path.exists(os.path.join(args.warmed_up_model, "training_state.json")):
@@ -566,9 +566,9 @@ def main(args):
         logger.info(f"Loading model from {args.resume_from}")
         checkpoint_path = os.path.join(args.resume_from, "model.safetensors")
         if isinstance(model, ReLoRaModel):
-            model.wrapped_model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"), strict=True)
+            model.wrapped_model.load_state_dict(torch.load(checkpoint_path, map_location="cpu", weights_only=False), strict=True)
         else:
-            model.load_state_dict(torch.load(checkpoint_path, map_location="cpu"), strict=True)
+            model.load_state_dict(torch.load(checkpoint_path, map_location="cpu", weights_only=False), strict=True)
 
         logger.info(f"Model successfully loaded (strict=True policy)")
 
@@ -718,7 +718,7 @@ def main(args):
 
         if args.load_optimizer_state_on_resume:
             _optimizer_dir = args.resume_from
-            optimizer_checkpoint = torch.load(os.path.join(_optimizer_dir, "optimizer.pt"), map_location="cpu")
+            optimizer_checkpoint = torch.load(os.path.join(_optimizer_dir, "optimizer.pt"), map_location="cpu", weights_only=False)
             optimizer.load_state_dict(optimizer_checkpoint["optimizer"])
             scheduler.load_state_dict(optimizer_checkpoint["scheduler"])
             update_step = optimizer_checkpoint["update_step"]
@@ -829,7 +829,7 @@ def main(args):
         _loss = loss_info[0] / loss_info[1]  # loss to log in wandb below
 
         if loss_info[2] == 0:  # no NaNs, update model
-            if global_rank == 0:
+            if global_rank == 0 and not args.use_peft:
                 weightUpdateTracker.track(optimizer, step=global_step)
             optimizer.step()
             scheduler.step()
