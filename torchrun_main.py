@@ -92,7 +92,7 @@ def parse_args(args=None):
                         help=("Keep original model parameters even if relora is None. "
                               "Useful for making sure that full-LoRa model is equivalent to model+LoRa."))
 
-    parser.add_argument("--optimizer", default="Adam", help="Could be adam (for AdamW) or adam_zero for ZeroRedundancyOptimizer(AdamW)")
+    parser.add_argument("--optimizer", default="Adam", help="Could be adam (for AdamW), sgd or adam_zero for ZeroRedundancyOptimizer(AdamW)")
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--scheduler", type=str, default="cosine", choices=["linear", "cosine", "cosine_restarts"])
     parser.add_argument("--cycle_length", type=int, default=None, help="Number of steps per cycle for cosine scheduler")
@@ -683,6 +683,9 @@ def main(args):
             **optimizer_kwargs,
         )
         optimizer_state_keys = ["exp_avg", "exp_avg_sq"]
+    elif args.optimizer.lower() == "sgd":
+        logger.info("Using SGD optimizer")
+        optimizer = torch.optim.SGD(trainable_params, args.lr)
     else:
         raise ValueError(f"Optimizer {args.optimizer} not supported")
     
