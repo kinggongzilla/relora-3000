@@ -26,6 +26,7 @@ class ReLoRaConfig:
     trainable_scaling: bool = False
     quantize: str = None
     use_double_quant: bool = False
+    init_lora_weights: bool = True
 
 
 def merge_and_reinit_functional(module):
@@ -60,6 +61,7 @@ class ReLoRaModel(torch.nn.Module):
         trainable_scaling=False,
         quantize=None,
         use_double_quant=False,
+        init_lora_weights: bool = True,
     ):
         if r <= 0:
             raise ValueError("r must be positive. If you want r == 0, use the original model.")
@@ -82,6 +84,7 @@ class ReLoRaModel(torch.nn.Module):
             keep_original_weights=keep_original_weights,
             quantize=quantize,
             use_double_quant=use_double_quant,
+            init_lora_weights=init_lora_weights,
         )
 
         # patch methods
@@ -117,7 +120,7 @@ class ReLoRaModel(torch.nn.Module):
                 bias_data=bias_data,
                 bnb_4bit_use_double_quant=use_double_quant,
             )
-            if self.keep_original_weights:
+            if self.keep_original_weights and not init_lora_weights:
                 # make lora'ed network to be exacty the same as the original network at initialization
                 nn.init.zeros_(new_module.lora_A.weight)
                 assert new_module.lora_A.bias is None

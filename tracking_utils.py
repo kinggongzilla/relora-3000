@@ -172,7 +172,17 @@ class WeightUpdateTracker:
                     # Compute all metrics
                     per = compute_per(s, d_inter)
                     condition_number = (s[0] / s[-1]).item()
-                    
+
+                    # if condition number is inf or nan, print layer name and s[0], s[-1]
+                    if not torch.isfinite(torch.tensor(condition_number)):
+                        param_id = id(p)
+                        layer_name = self.param_to_name.get(param_id, f"param_{param_id}")
+                        print(f"Warning: Non-finite condition number in layer {layer_name}: s[0]={s[0].item()}, s[-1]={s[-1].item()}, requires_grad={p.requires_grad}")
+                        if p.grad is not None:
+                            grad_norm = p.grad.norm().item()
+                            print(f"Layer {layer_name}: grad_norm={grad_norm}, weight_norm={p.norm().item()}")
+                        else:
+                            print(f"Layer {layer_name}: NO GRADIENT")
                     # Get layer name, number, and weight type
                     param_id = id(p)
                     layer_name = self.param_to_name.get(param_id, f"param_{param_id}")

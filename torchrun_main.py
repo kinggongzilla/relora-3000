@@ -92,7 +92,7 @@ def parse_args(args=None):
                         help=("Keep original model parameters even if relora is None. "
                               "Useful for making sure that full-LoRa model is equivalent to model+LoRa."))
 
-    parser.add_argument("--optimizer", default="Adam", help="Could be adam (for AdamW), sgd or adam_zero for ZeroRedundancyOptimizer(AdamW)")
+    parser.add_argument("--optimizer", default="Adam", help="Could be adam (for AdamW), sgd for SGD or adam_zero for ZeroRedundancyOptimizer(AdamW)")
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--scheduler", type=str, default="cosine", choices=["linear", "cosine", "cosine_restarts"])
     parser.add_argument("--cycle_length", type=int, default=None, help="Number of steps per cycle for cosine scheduler")
@@ -133,7 +133,9 @@ def parse_args(args=None):
     parser.add_argument("--wandb_watch", default=False, type=lambda x: x.lower() == "true",
                         help="Enable wandb.watch (may make training unstable, but might be good for understanding gradients)")
     parser.add_argument("--skip_batches", default=None, type=str, help="Batch numbers to skip, separated by comma. E.g., 2003,2990,12309. Specifically, update_step numbers.")
-
+    parser.add_argument("--init_lora_weights", default=False, type=lambda x: x.lower() == "true",
+                    help="Initialize LoRA weights with Kaiming uniform (True) or zeros (False). "
+                         "Set to False to keep model identical to original at initialization.")
     parser.add_argument("--seed", type=int, default=0)
 
     args = parser.parse_args(args)
@@ -560,6 +562,7 @@ def main(args):
             lora_only=not need_linear_weight,
             quantize=args.quantize,
             use_double_quant=args.use_double_quant,
+            init_lora_weights=args.init_lora_weights
         )
 
     if args.resume_from:
@@ -694,13 +697,13 @@ def main(args):
 
     weightUpdateTracker = WeightUpdateTracker(
         model, 
-        track_every_n_steps=250,
+        track_every_n_steps=10,
         save_dir=f"weight_metrics/{args.run_name}"
     )
     scheduler_start_step = update_step
     _scheduler_steps = args.num_training_steps - scheduler_start_step
     logger.info(f"Scheduler will run for {_scheduler_steps} update steps")
-    scheduler = training_utils.get_scheculer(
+    scheduler = training_utils.get_scheduler(
         optimizer=optimizer,
         scheduler_type=args.scheduler,
         num_training_steps=_scheduler_steps,

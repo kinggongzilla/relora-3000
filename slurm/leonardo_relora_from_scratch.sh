@@ -58,4 +58,5 @@ torchrun --nproc-per-node 4 torchrun_main.py \
     --save_every 5000 \
     --eval_every 5000 \
     --tags relora_from_scratch_60M \
-    --dataset_path preprocessed_data/c4_en_t5-base_512
+    --dataset_path preprocessed_data/c4_en_t5-base_512 \
+    --init_lora_weights True
