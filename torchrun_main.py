@@ -137,8 +137,15 @@ def parse_args(args=None):
                     help="Initialize LoRA weights with Kaiming uniform (True) or zeros (False). "
                          "Set to False to keep model identical to original at initialization.")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--reset_optimizer_on_full_train", default=False)
 
     args = parser.parse_args(args)
+
+    # if reset_optimizer_on_full_train is same as reset_optimizer_on_relora, warn the user and throw error
+    if args.reset_optimizer_on_full_train == args.reset_optimizer_on_relora:
+        logger.error("Both reset_optimizer_on_full_train and reset_optimizer_on_relora are set to True. "
+                     "Please set only one of them to True.")
+        raise ValueError("Both reset_optimizer_on_full_train and reset_optimizer_on_relora are set to True.")
 
     args = args_utils.check_args_torchrun_main(args)
 
@@ -918,9 +925,13 @@ def main(args):
             _lora_reset_time = time.time() - _lora_reset_time
             logger.info(f"LoRA reset took {_lora_reset_time:.2f}s")
 
-        can_reset_optimizer = args.relora is not None and (
+        can_reset_optimizer = (
+            (args.relora is not None and args.reset_optimizer_on_relora)
+            or
+            (args.reset_optimizer_on_full_train and args.cycle_length is not None)
+        ) and (
             args.resume_from is not None
-            or local_step // args.gradient_accumulation >= args.cycle_length
+            or (update_step - scheduler_start_step) % args.cycle_length == 0
         )
 
         if can_reset_optimizer and (update_step - scheduler_start_step) % args.cycle_length == 1:

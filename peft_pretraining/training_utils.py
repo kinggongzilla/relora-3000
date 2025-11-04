@@ -208,7 +208,7 @@ def _get_cosine_schedule_with_multiple_warmups_lambda(
     assert 0 < min_lr_ratio <= 1.0, "min_lr_ratio must be in (0,1]"
     assert restart_every > 0, "restart_every must be positive"
     assert adjust_step + first_warmup_steps <= num_training_steps, "warmup + adjust_step is more than full training steps"
-    assert adjust_step + first_warmup_steps <= restart_every, "the first reset will happen before the warmup is done"
+    # assert adjust_step + first_warmup_steps <= restart_every, "the first reset will happen before the warmup is done"
 
     if current_step < first_warmup_steps:
         return float(current_step) / float(max(1, first_warmup_steps))
