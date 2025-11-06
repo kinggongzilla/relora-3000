@@ -136,8 +136,11 @@ class WeightUpdateTracker:
             wandb_logs = {}
             
             # For aggregating metrics
-            metrics_by_layer = defaultdict(lambda: {'per': [], 'condition_number': []})
-            metrics_by_type = defaultdict(lambda: {'per': [], 'condition_number': []})
+            metrics_by_layer = defaultdict(lambda: {'per': []})
+            metrics_by_type = defaultdict(lambda: {'per': []})
+            
+            # For tracking LoRA pairs
+            lora_matrices = {}  # Store A and B matrices by base name
             
             for group in optimizer.param_groups:
                 for p in group['params']:
@@ -171,29 +174,39 @@ class WeightUpdateTracker:
                     
                     # Compute all metrics
                     per = compute_per(s, d_inter)
-                    condition_number = (s[0] / s[-1]).item()
 
-                    # if condition number is inf or nan, print layer name and s[0], s[-1]
-                    if not torch.isfinite(torch.tensor(condition_number)):
-                        param_id = id(p)
-                        layer_name = self.param_to_name.get(param_id, f"param_{param_id}")
-                        print(f"Warning: Non-finite condition number in layer {layer_name}: s[0]={s[0].item()}, s[-1]={s[-1].item()}, requires_grad={p.requires_grad}")
-                        if p.grad is not None:
-                            grad_norm = p.grad.norm().item()
-                            print(f"Layer {layer_name}: grad_norm={grad_norm}, weight_norm={p.norm().item()}")
-                        else:
-                            print(f"Layer {layer_name}: NO GRADIENT")
                     # Get layer name, number, and weight type
                     param_id = id(p)
                     layer_name = self.param_to_name.get(param_id, f"param_{param_id}")
                     layer_number = extract_layer_number(layer_name)
                     weight_type = extract_weight_type(layer_name)
                     
+                    # Check if this is a LoRA matrix (lora_A or lora_B)
+                    is_lora_a = 'lora_A' in layer_name or '.lora_A.' in layer_name
+                    is_lora_b = 'lora_B' in layer_name or '.lora_B.' in layer_name
+                    
+                    if is_lora_a or is_lora_b:
+                        # Extract base name (everything before lora_A/lora_B)
+                        if is_lora_a:
+                            base_name = layer_name.replace('lora_A', '').replace('.lora_A.', '.')
+                            matrix_type = 'A'
+                        else:
+                            base_name = layer_name.replace('lora_B', '').replace('.lora_B.', '.')
+                            matrix_type = 'B'
+                        
+                        # Store the update for later BA computation
+                        if base_name not in lora_matrices:
+                            lora_matrices[base_name] = {}
+                        lora_matrices[base_name][matrix_type] = {
+                            'update': update_float32,
+                            'layer_number': layer_number,
+                            'weight_type': weight_type
+                        }
+                    
                     # Store ALL singular values locally
                     step_metrics[layer_name] = {
                         'per': per,
                         'd_inter': d_inter,
-                        'condition_number': condition_number,
                         'singular_values': s.cpu().numpy().tolist(),
                         'layer_number': layer_number,
                         'weight_type': weight_type,
@@ -202,41 +215,67 @@ class WeightUpdateTracker:
                     # Accumulate for aggregation
                     if layer_number is not None:
                         metrics_by_layer[layer_number]['per'].append(per)
-                        metrics_by_layer[layer_number]['condition_number'].append(condition_number)
                     
                     metrics_by_type[weight_type]['per'].append(per)
-                    metrics_by_type[weight_type]['condition_number'].append(condition_number)
                     
                     del update, update_float32, s
+            
+            # Compute BA product metrics for LoRA pairs
+            for base_name, matrices in lora_matrices.items():
+                if 'A' in matrices and 'B' in matrices:
+                    # Compute BA product
+                    B_update = matrices['B']['update']
+                    A_update = matrices['A']['update']
+                    BA_product = torch.matmul(B_update, A_update)
+                    
+                    # Compute singular values of BA
+                    s_ba = torch.linalg.svdvals(BA_product)
+                    d_inter_ba = min(BA_product.shape)
+                    per_ba = compute_per(s_ba, d_inter_ba)
+                    
+                    # Store metrics
+                    ba_layer_name = f"{base_name}.lora_BA"
+                    step_metrics[ba_layer_name] = {
+                        'per': per_ba,
+                        'd_inter': d_inter_ba,
+                        'singular_values': s_ba.cpu().numpy().tolist(),
+                        'layer_number': matrices['B']['layer_number'],
+                        'weight_type': 'lora_BA',
+                    }
+                    
+                    # Add to aggregations
+                    layer_number = matrices['B']['layer_number']
+                    if layer_number is not None:
+                        metrics_by_layer[layer_number]['per'].append(per_ba)
+                    
+                    metrics_by_type['lora_BA']['per'].append(per_ba)
+                    
+                    # Log individual BA metrics
+                    if layer_number is not None:
+                        wandb_logs[f'weight_updates/lora_BA/layer_{layer_number}/per'] = per_ba
+                    
+                    del BA_product, s_ba
             
             # Log aggregated metrics by layer (averaged over all weight types in that layer)
             for layer_num, metrics in metrics_by_layer.items():
                 mean_per = sum(metrics['per']) / len(metrics['per'])
-                mean_cond = sum(metrics['condition_number']) / len(metrics['condition_number'])
                 
                 wandb_logs[f'weight_updates/by_layer/layer_{layer_num}/mean_per'] = mean_per
-                wandb_logs[f'weight_updates/by_layer/layer_{layer_num}/mean_condition_number'] = mean_cond
             
             # Log aggregated metrics by weight type (averaged over all layers for that type)
             for weight_type, metrics in metrics_by_type.items():
                 mean_per = sum(metrics['per']) / len(metrics['per'])
-                mean_cond = sum(metrics['condition_number']) / len(metrics['condition_number'])
                 
                 wandb_weight_type = weight_type.replace('.', '/')
-                wandb_logs[f'weight_updates/by_type/{wandb_weight_type}/mean_per'] = mean_per
-                wandb_logs[f'weight_updates/by_type/{wandb_weight_type}/mean_condition_number'] = mean_cond
-            
+                wandb_logs[f'weight_updates/by_type/{wandb_weight_type}/mean_per'] = mean_per            
 
             #overall averages
             all_pers = []
-            all_condition_numbers = []
             for metrics in metrics_by_type.values():
                 all_pers.extend(metrics['per'])
-                all_condition_numbers.extend(metrics['condition_number'])
 
             if all_pers:
                 wandb_logs['weight_updates/overall/mean_per'] = sum(all_pers) / len(all_pers)
-                wandb_logs['weight_updates/overall/mean_condition_number'] = sum(all_condition_numbers) / len(all_condition_numbers)
 
             # Store metrics locally
             self.all_metrics.append({
